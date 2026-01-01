@@ -3,71 +3,51 @@
   stdenvNoCC,
   fetchFromGitHub,
   buildGoModule,
-  nodejs,
-  pnpm_9,
+  nodejs_20,
+  pnpm_10,
   fetchPnpmDeps,
   pnpmConfigHook,
-  esbuild,
 }:
-buildGoModule rec {
+buildGoModule (finalAttrs: {
   pname = "syncyomi";
-  version = "1.1.2";
+  version = "1.1.4";
 
   src = fetchFromGitHub {
-    owner = "SyncYomi";
-    repo = "SyncYomi";
-    tag = "v${version}";
-    hash = "sha256-PPE6UXHo2ZlN0A0VkUH+8pkdfm6WEvpofusk6c3RBHk=";
+    owner = "syncyomi";
+    repo = "syncyomi";
+    tag = "v${finalAttrs.version}";
+    hash = "sha256-pU3zxzixKoYnJsGpfvC/SVWIu0adsaiiVcLn0IZe64w=";
   };
 
-  vendorHash = "sha256-/rpT6SatIZ+GVzmVg6b8Zy32pGybprObotyvEgvdL2w=";
+  vendorHash = "sha256-fzPEljXFskr1/qzTsnASFNNc+8vA7kqO21mhMqwT44w=";
 
-  web = stdenvNoCC.mkDerivation (finalAttrs: {
-    pname = "${pname}-web";
-    inherit src version;
-    sourceRoot = "${finalAttrs.src.name}/web";
+  env.web = stdenvNoCC.mkDerivation (finalAttrsWeb: {
+    pname = "${finalAttrs.pname}-web";
+    inherit (finalAttrs) src version;
+    sourceRoot = "${finalAttrsWeb.src.name}/web";
 
-    pnpmDeps = fetchPnpmDeps {
-      inherit (finalAttrs)
+    env.pnpmRoot = ".";
+    env.pnpmDeps = fetchPnpmDeps {
+      inherit (finalAttrsWeb)
         pname
         version
         src
         sourceRoot
         ;
-      pnpm = pnpm_9;
-      fetcherVersion = 1;
-      hash = "sha256-edcZIqshnvM3jJpZWIR/UncI0VCMLq26h/n3VvV/384=";
+      pnpm = pnpm_10;
+      fetcherVersion = 2;
+      hash = "sha256-jZi2b+Ng3ebz1xCuEJ+yg52RQTxTytiIanAwq/TH6Xc=";
     };
 
     nativeBuildInputs = [
-      nodejs
+      nodejs_20
       pnpmConfigHook
-      pnpm_9
+      pnpm_10
     ];
-
-    env.ESBUILD_BINARY_PATH = lib.getExe (
-      esbuild.override {
-        buildGoModule =
-          args:
-          buildGoModule (
-            args
-            // rec {
-              version = "0.17.19";
-              src = fetchFromGitHub {
-                owner = "evanw";
-                repo = "esbuild";
-                rev = "v${version}";
-                hash = "sha256-PLC7OJLSOiDq4OjvrdfCawZPfbfuZix4Waopzrj8qsU=";
-              };
-              vendorHash = "sha256-+BfxCyg0KkDQpHt/wycy/8CTG6YBA/VJvJFhhzUnSiQ=";
-            }
-          );
-      }
-    );
 
     buildPhase = ''
       runHook preBuild
-      pnpm build
+      pnpm run build
       runHook postBuild
     '';
 
@@ -79,13 +59,14 @@ buildGoModule rec {
   });
 
   preConfigure = ''
-    cp -r $web/* web/dist
+    cp -r $web/. web/dist/
   '';
 
   ldflags = [
     "-s"
     "-w"
-    "-X main.version=v${version}"
+    "-X main.version=v${finalAttrs.version}"
+    "-X main.commit=${finalAttrs.src.rev}"
   ];
 
   postInstall = lib.optionalString (!stdenvNoCC.hostPlatform.isDarwin) ''
@@ -94,11 +75,14 @@ buildGoModule rec {
 
   meta = {
     description = "Open-source project to synchronize Tachiyomi manga reading progress and library across multiple devices";
-    homepage = "https://github.com/SyncYomi/SyncYomi";
-    changelog = "https://github.com/SyncYomi/SyncYomi/releases/tag/v${version}";
+    homepage = "https://github.com/syncyomi/syncyomi";
+    changelog = "https://github.com/syncyomi/syncyomi/releases/tag/${finalAttrs.src.tag}";
     license = lib.licenses.gpl2Only;
-    maintainers = with lib.maintainers; [ eriedaberrie ];
-    mainProgram = "syncyomi";
+    maintainers = with lib.maintainers; [
+      eriedaberrie
+      reo101
+    ];
     platforms = lib.platforms.linux ++ lib.platforms.darwin;
+    mainProgram = "syncyomi";
   };
-}
+})
